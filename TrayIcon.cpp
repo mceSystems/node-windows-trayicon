@@ -317,16 +317,14 @@ void CTrayIcon::FillNotifyIconData(NOTIFYICONDATAA& data)
 	data.uID = m_Id;
 }
 
-LRESULT CALLBACK pWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	return DefWindowProc(hWnd, uMsg, wParam, lParam);
-}
-
-CTrayIcon* g_tray = nullptr;
-std::vector<CTrayIconMenuItem> g_menuItems;
-nbind::cbFunction* g_OnMenuItem = nullptr;
-
 typedef void (*MenuItemCallback)(uv_async_t * handle) ;
+
+class AsyncCallContext
+{
+public:
+	std::string id;
+	nbind::cbFunction* cb;
+};
 
 void callAsync(MenuItemCallback fn, void * data)
 {
@@ -339,47 +337,23 @@ void callAsync(MenuItemCallback fn, void * data)
 void callMenuItemCallback(uv_async_t * handle)
 {
 	Nan::HandleScope scope;
-	char* id = (char*)handle->data;
-	(*g_OnMenuItem)(std::string(id));
-	free(id);
+	AsyncCallContext* ctx = (AsyncCallContext*)handle->data;
+	(*ctx->cb)(ctx->id);
+	delete ctx;
 }
 
-
-void menu()
-{
-	static const TCHAR* class_name = TEXT("MCE_HWND_MESSAGE");
-	WNDCLASSEX wx = {};
-	wx.cbSize = sizeof(WNDCLASSEX);
-	wx.lpfnWndProc = pWndProc;        // function which will handle messages
-	wx.hInstance = 0;
-	wx.lpszClassName = class_name;
-	RegisterClassEx(&wx);
-	HWND hwnd = CreateWindowEx(0, class_name, TEXT("MCE_HWND_MESSAGE"), 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, NULL, NULL);
-
-	POINT pt;
-	if (GetCursorPos(&pt))
-	{
-		HMENU menu = CreatePopupMenu();
-		int i = 0;
-		for (auto const& item : g_menuItems){
-			AppendMenuA(menu, MF_STRING, i++, item.m_caption.c_str());
-		}
-		UINT cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
-		callAsync(callMenuItemCallback, strdup(g_menuItems[cmd].m_id.c_str()));
-	}
-
-	DestroyWindow(hwnd);
-}
 
 void TrayOnMessage(CTrayIcon* pTrayIcon, UINT uMsg)
 {
 	switch (uMsg)
 	{
 	case WM_LBUTTONUP:
-		ShellExecuteA(nullptr, "open", g_menuItems[0].m_id.c_str(), nullptr, nullptr, SW_SHOW);
-		break;
 	case WM_RBUTTONUP:
-		menu();
+		((CTrayIconContainer*)pTrayIcon->GetUserData())->PopupMenu();
+		break;
+
+	case NIN_BALLOONUSERCLICK:
+		((CTrayIconContainer*)pTrayIcon->GetUserData())->BalloonClick();
 		break;
 	}
 }
@@ -394,37 +368,91 @@ void CTrayIconContainer::Stop()
 	m_worker->join();
 	delete m_worker;
 	m_worker = nullptr;
+	m_tray.SetVisible(false);
 }
 
+LRESULT CALLBACK pWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	return DefWindowProc(hWnd, uMsg, wParam, lParam);
+}
 
 void CTrayIconContainer::Start(std::string iconPath, std::string title)
 {
-	m_worker = new std::thread([this, iconPath, title] {
+	HANDLE ready = CreateEvent(nullptr, true, false, nullptr);
+
+	m_worker = new std::thread([this, iconPath, title, ready] {
 		HICON ico = (HICON)LoadImage(NULL, iconPath.c_str(),IMAGE_ICON,0,0,LR_LOADFROMFILE | LR_DEFAULTSIZE | LR_SHARED);
-		g_tray = new CTrayIcon(title.c_str(), true, ico, true);
-		g_tray->SetListener(TrayOnMessage);
+		m_tray.SetIcon(ico);
+		m_tray.SetName(title.c_str());
+		m_tray.SetUserData(this);
+		m_tray.SetVisible(true);
+		m_tray.SetListener(TrayOnMessage);
+		
+		SetEvent(ready);
+		
+		static const TCHAR* class_name = TEXT("MCE_HWND_MESSAGE");
+		WNDCLASSEX wx = {};
+		wx.cbSize = sizeof(WNDCLASSEX);
+		wx.lpfnWndProc = pWndProc;
+		wx.hInstance = 0;
+		wx.lpszClassName = class_name;
+		RegisterClassEx(&wx);
+		m_hwnd = CreateWindowEx(0, class_name, TEXT("MCE_HWND_MESSAGE"), 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, NULL, NULL);
+
 		MSG msg;
 		while (GetMessage(&msg, NULL, 0, 0))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+		
+		DestroyWindow(m_hwnd);
 
 		return 0;
 	});
+
+	WaitForSingleObject(ready, INFINITE);
+	CloseHandle(ready);
+}
+
+void CTrayIconContainer::BalloonClick()
+{
+	AsyncCallContext* ctx = new AsyncCallContext;
+	ctx->cb = m_OnBalloonClick;
+	callAsync(callMenuItemCallback, ctx);
+}
+
+void CTrayIconContainer::PopupMenu()
+{
+	POINT pt;
+	if (GetCursorPos(&pt))
+	{
+		HMENU menu = CreatePopupMenu();
+		int i = 0;
+		for (auto const& item : m_menuItems) {
+			AppendMenuA(menu, MF_STRING, i++, item.m_caption.c_str());
+		}
+		UINT cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, m_hwnd, NULL);
+		AsyncCallContext* ctx = new AsyncCallContext;
+		ctx->cb = m_OnMenuItem;
+		ctx->id = m_menuItems[cmd].m_id;
+		callAsync(callMenuItemCallback, ctx);
+	}
 }
 
 void CTrayIconContainer::AddMenuItem(std::string id, std::string caption)
 {
-	g_menuItems.push_back(CTrayIconMenuItem(id, caption));
+	m_menuItems.push_back(CTrayIconMenuItem(id, caption));
 }
 
 void CTrayIconContainer::OnMenuItem(nbind::cbFunction & cb)
 {
-	g_OnMenuItem = new nbind::cbFunction(cb);
+	m_OnMenuItem = new nbind::cbFunction(cb);
 }
+
 
 void CTrayIconContainer::ShowBalloon(std::string title, std::string text, int timeout, nbind::cbFunction & cb)
 {
-	g_tray->ShowBalloonTooltip(title.c_str(), text.c_str());
+	m_OnBalloonClick = new nbind::cbFunction(cb);
+	m_tray.ShowBalloonTooltip(title.c_str(), text.c_str());
 }

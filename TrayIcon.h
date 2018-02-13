@@ -19,6 +19,19 @@
 
 struct ITrayIconListener;
 
+
+
+class CTrayIconMenuItem
+{
+public:
+	CTrayIconMenuItem(std::string id, std::string caption) :
+		m_id(id), m_caption(caption) {}
+
+	std::string m_id;
+	std::string m_caption;
+};
+
+
 // You can use this class either by inheriting from it and overriding the OnMessage() method,
 // or by instantiating this class directly and setting its listener object or function.
 class CTrayIcon
@@ -55,6 +68,8 @@ public:
 	typedef void (*POnMessageFunc)(CTrayIcon* pTrayIcon, UINT uMsg);
 	void SetListener(POnMessageFunc pOnMessageFunc) { m_pOnMessageFunc = pOnMessageFunc; }
 	void SetListener(ITrayIconListener *pListener) { m_pListener = pListener; }
+	void SetUserData(const void* UserData) { m_userData = UserData; }
+	const void* GetUserData() { return m_userData; }
 
 protected:
 	// uMsg can be one of the following window messages:
@@ -88,6 +103,7 @@ private:
 
 	static LRESULT CALLBACK MessageProcessorWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	static HWND GetMessageProcessorHWND();
+	const void* m_userData;
 };
 
 
@@ -145,15 +161,6 @@ struct ITrayIconListener
 };
 
 
-class CTrayIconMenuItem
-{
-public:
-	CTrayIconMenuItem(std::string id, std::string caption):
-		m_id(id), m_caption(caption){}
-
-	std::string m_id;
-	std::string m_caption;
-};
 
 class CTrayIconContainer
 {
@@ -165,9 +172,16 @@ public:
 	void OnMenuItem(nbind::cbFunction & cb);
 	void ShowBalloon(std::string title, std::string text, int timeout, nbind::cbFunction & cb);
 	void Stop();
+	void PopupMenu();
+	void BalloonClick();
 
 private:
+	CTrayIcon m_tray;
 	std::thread* m_worker;
+	HWND m_hwnd;
+	std::vector<CTrayIconMenuItem> m_menuItems;
+	nbind::cbFunction* m_OnMenuItem;
+	nbind::cbFunction* m_OnBalloonClick;
 };
 
 #endif //!__TRAY_ICON_H__
