@@ -4,20 +4,24 @@ const { lib: { CTrayIconContainer } } = nbind.init(__dirname);
 class WindowsTryicon {
 	constructor(options) {
 		this.__itemCallbacks = [];
-		this.__iconPath = options.icon || "";
+		this.__icon = options.icon;
 		this.__trayTitle = options.title || "";
 		this.__menuItems = options.menu || [];
 
 		this.__nativeTray = new CTrayIconContainer();
-		for(const item of this.__menuItems){
+		for (const item of this.__menuItems) {
 			this.__nativeTray.AddMenuItem(item.id, item.caption);
 		}
 		this.__nativeTray.OnMenuItem((id) => {
-			for(const cb of this.__itemCallbacks){
+			for (const cb of this.__itemCallbacks) {
 				cb(id);
 			}
 		})
-		this.__nativeTray.Start(this.__iconPath, this.__trayTitle);
+		this.__nativeTray.SetTitle(this.__trayTitle);
+		if(this.__icon && "string" === typeof this.__icon){
+			this.__nativeTray.SetIconPath(this.__icon);
+		}
+		this.__nativeTray.Start();
 	}
 	item(cb) {
 		if ("function" === typeof cb) {
@@ -31,7 +35,7 @@ class WindowsTryicon {
 			})
 		});
 	}
-	exit(){
+	exit() {
 		this.__nativeTray.Stop();
 	}
 }

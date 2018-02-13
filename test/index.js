@@ -1,8 +1,10 @@
 const WindowsTryicon = require("..");
+const path = require("path");
+const fs = require("fs");
 
 const myTrayApp = new WindowsTryicon({
 	title: "Trayicon Test",
-	icon: "c:\\tmp\\icon.ico",
+	icon: path.resolve(__dirname, "icon.ico"),
 	menu: [
 		{
 			id: "item-1-id",
@@ -28,7 +30,7 @@ myTrayApp.item((id) => {
 		}
 		case "item-2-id": {
 			myTrayApp.balloon("Hello There!", "This is my message to you").then(() => {
-				console.log("Balloon dismissed");
+				console.log("Balloon clicked");
 			})
 			break;
 		}

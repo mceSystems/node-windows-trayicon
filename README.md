@@ -9,9 +9,12 @@ npm install --save windows-trayicon
 # Usage
 ```
 const WindowsTryicon = require("windows-trayicon");
+const path = require("path");
+const fs = require("fs");
 
 const myTrayApp = new WindowsTryicon({
-	icon: "my-icon.ico",
+	title: "Trayicon Test",
+	icon: path.resolve(__dirname, "icon.ico"),
 	menu: [
 		{
 			id: "item-1-id",
@@ -29,20 +32,26 @@ const myTrayApp = new WindowsTryicon({
 });
 
 myTrayApp.item((id) => {
-	switch(id){
+	console.log(`Menu id selected=${id}`);
+	switch (id) {
 		case "item-1-id": {
-			// do something
+			console.log("First item selected...");
 			break;
 		}
 		case "item-2-id": {
-			// do something else...
+			myTrayApp.balloon("Hello There!", "This is my message to you").then(() => {
+				console.log("Balloon clicked");
+			})
 			break;
 		}
 		case "item-3-id-exit": {
-			process.exit(0);
+			myTrayApp.exit();
+			process.exit(0)
 			break;
 		}
 	}
 });
+
+process.stdin.resume()
 
 ```

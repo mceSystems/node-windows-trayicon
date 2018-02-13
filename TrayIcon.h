@@ -167,7 +167,9 @@ class CTrayIconContainer
 public:
 	CTrayIconContainer();
 
-	void Start(std::string iconPath, std::string title);
+	void Start();
+	void SetIconPath(std::string iconPath);
+	void SetTitle(std::string title);
 	void AddMenuItem(std::string id, std::string caption);
 	void OnMenuItem(nbind::cbFunction & cb);
 	void ShowBalloon(std::string title, std::string text, int timeout, nbind::cbFunction & cb);
