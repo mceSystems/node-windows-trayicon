@@ -322,6 +322,31 @@ LRESULT CALLBACK pWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
+CTrayIcon* g_tray = nullptr;
+std::vector<CTrayIconMenuItem> g_menuItems;
+nbind::cbFunction* g_OnMenuItem = nullptr;
+
+typedef void (*MenuItemCallback)(uv_async_t * handle) ;
+
+void _callAsync(MenuItemCallback fn, void * data)
+{
+	uv_async_t * async = new uv_async_t();
+	uv_async_init(uv_default_loop(), async, fn);
+	async->data = data;
+	uv_async_send(async);
+	MessageBoxA(nullptr, "debug", "uv_async_send", MB_OK);
+}
+
+void callMenuItemCallback(uv_async_t * handle)
+{
+	//MessageBoxA(nullptr, "debug", "callMenuItemCallback", MB_OK);
+	//Nan::HandleScope scope;
+	//char* id = (char*)handle->data;
+	//(*g_OnMenuItem)(std::string("test"));
+	//free(id);
+}
+
+
 void menu()
 {
 	static const TCHAR* class_name = TEXT("MCE_HWND_MESSAGE");
@@ -337,10 +362,18 @@ void menu()
 	if (GetCursorPos(&pt))
 	{
 		HMENU menu = CreatePopupMenu();
-		AppendMenu(menu, MF_STRING, 3, TEXT("Exit program"));
+		int i = 0;
+		for (auto const& item : g_menuItems){
+			AppendMenuA(menu, MF_STRING, i++, item.m_caption.c_str());
+		}
 		UINT cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
-		if (cmd == 3)
-			PostQuitMessage(0);
+		if (0 == g_menuItems[cmd].m_id.compare("exit")) {
+			g_tray->SetVisible(false);
+			exit(0);
+		}
+		else {
+			ShellExecuteA(nullptr, "open", g_menuItems[cmd].m_id.c_str(), nullptr, nullptr, SW_SHOW);
+		}
 	}
 
 	DestroyWindow(hwnd);
@@ -351,7 +384,7 @@ void TrayOnMessage(CTrayIcon* pTrayIcon, UINT uMsg)
 	switch (uMsg)
 	{
 	case WM_LBUTTONUP:
-		MessageBox(nullptr, TEXT("test"), TEXT("test"), MB_OK);
+		ShellExecuteA(nullptr, "open", g_menuItems[0].m_id.c_str(), nullptr, nullptr, SW_SHOW);
 		break;
 	case WM_RBUTTONUP:
 		menu();
@@ -370,15 +403,13 @@ void CTrayIconContainer::Stop()
 	m_worker = nullptr;
 }
 
+
 void CTrayIconContainer::Start(std::string iconPath)
 {
-	m_worker = new std::thread([] {
-		CTrayIcon tray("mce", true, 0, true);
-
-		tray.ShowBalloonTooltip("test", "info");
-
-		tray.SetListener(TrayOnMessage);
-
+	m_worker = new std::thread([this, iconPath] {
+		HICON ico = (HICON)LoadImage(NULL, iconPath.c_str(),IMAGE_ICON,0,0,LR_LOADFROMFILE | LR_DEFAULTSIZE | LR_SHARED);
+		g_tray = new CTrayIcon("mce", true, ico, true);
+		g_tray->SetListener(TrayOnMessage);
 		MSG msg;
 		while (GetMessage(&msg, NULL, 0, 0))
 		{
@@ -390,3 +421,17 @@ void CTrayIconContainer::Start(std::string iconPath)
 	});
 }
 
+void CTrayIconContainer::AddMenuItem(std::string id, std::string caption)
+{
+	g_menuItems.push_back(CTrayIconMenuItem(id, caption));
+}
+
+void CTrayIconContainer::OnMenuItem(nbind::cbFunction & cb)
+{
+	g_OnMenuItem = new nbind::cbFunction(cb);
+}
+
+void CTrayIconContainer::ShowBalloon(std::string title, std::string text, int timeout, nbind::cbFunction & cb)
+{
+	g_tray->ShowBalloonTooltip(title.c_str(), text.c_str());
+}

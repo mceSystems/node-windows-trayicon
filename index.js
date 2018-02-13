@@ -16,7 +16,9 @@ class WindowsTryicon {
 				cb(id);
 			}
 		})
+		console.log("starting...");
 		this.__nativeTray.Start(this.__iconPath);
+		console.log("started");
 	}
 	item(cb) {
 		if ("function" === typeof cb) {

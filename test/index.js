@@ -1,18 +1,18 @@
 const WindowsTryicon = require("..");
 
 const myTrayApp = new WindowsTryicon({
-	icon: "my-icon.ico",
+	icon: "c:\\tmp\\icon.ico",
 	menu: [
 		{
-			id: "item-1-id",
-			caption: "First Item"
+			id: "http://www.google.com",
+			caption: "Google"
 		},
 		{
-			id: "item-2-id-show-balloon",
-			caption: "Show Balloon"
+			id: "http://www.cnn.com",
+			caption: "cnn"
 		},
 		{
-			id: "item-3-id-exit",
+			id: "exit",
 			caption: "Exit"
 		}
 	]
@@ -36,3 +36,5 @@ myTrayApp.item((id) => {
 		}
 	}
 });
+
+console.log("test end");

@@ -145,7 +145,15 @@ struct ITrayIconListener
 };
 
 
+class CTrayIconMenuItem
+{
+public:
+	CTrayIconMenuItem(std::string id, std::string caption):
+		m_id(id), m_caption(caption){}
 
+	std::string m_id;
+	std::string m_caption;
+};
 
 class CTrayIconContainer
 {
