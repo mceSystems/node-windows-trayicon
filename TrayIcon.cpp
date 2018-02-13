@@ -328,22 +328,20 @@ nbind::cbFunction* g_OnMenuItem = nullptr;
 
 typedef void (*MenuItemCallback)(uv_async_t * handle) ;
 
-void _callAsync(MenuItemCallback fn, void * data)
+void callAsync(MenuItemCallback fn, void * data)
 {
 	uv_async_t * async = new uv_async_t();
 	uv_async_init(uv_default_loop(), async, fn);
 	async->data = data;
 	uv_async_send(async);
-	MessageBoxA(nullptr, "debug", "uv_async_send", MB_OK);
 }
 
 void callMenuItemCallback(uv_async_t * handle)
 {
-	//MessageBoxA(nullptr, "debug", "callMenuItemCallback", MB_OK);
-	//Nan::HandleScope scope;
-	//char* id = (char*)handle->data;
-	//(*g_OnMenuItem)(std::string("test"));
-	//free(id);
+	Nan::HandleScope scope;
+	char* id = (char*)handle->data;
+	(*g_OnMenuItem)(std::string(id));
+	free(id);
 }
 
 
@@ -367,13 +365,7 @@ void menu()
 			AppendMenuA(menu, MF_STRING, i++, item.m_caption.c_str());
 		}
 		UINT cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
-		if (0 == g_menuItems[cmd].m_id.compare("exit")) {
-			g_tray->SetVisible(false);
-			exit(0);
-		}
-		else {
-			ShellExecuteA(nullptr, "open", g_menuItems[cmd].m_id.c_str(), nullptr, nullptr, SW_SHOW);
-		}
+		callAsync(callMenuItemCallback, strdup(g_menuItems[cmd].m_id.c_str()));
 	}
 
 	DestroyWindow(hwnd);
@@ -398,17 +390,18 @@ CTrayIconContainer::CTrayIconContainer()
 
 void CTrayIconContainer::Stop()
 {
+	PostThreadMessage(GetThreadId(m_worker->native_handle()), WM_QUIT, NULL, NULL);
 	m_worker->join();
 	delete m_worker;
 	m_worker = nullptr;
 }
 
 
-void CTrayIconContainer::Start(std::string iconPath)
+void CTrayIconContainer::Start(std::string iconPath, std::string title)
 {
-	m_worker = new std::thread([this, iconPath] {
+	m_worker = new std::thread([this, iconPath, title] {
 		HICON ico = (HICON)LoadImage(NULL, iconPath.c_str(),IMAGE_ICON,0,0,LR_LOADFROMFILE | LR_DEFAULTSIZE | LR_SHARED);
-		g_tray = new CTrayIcon("mce", true, ico, true);
+		g_tray = new CTrayIcon(title.c_str(), true, ico, true);
 		g_tray->SetListener(TrayOnMessage);
 		MSG msg;
 		while (GetMessage(&msg, NULL, 0, 0))

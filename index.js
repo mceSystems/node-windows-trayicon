@@ -5,6 +5,7 @@ class WindowsTryicon {
 	constructor(options) {
 		this.__itemCallbacks = [];
 		this.__iconPath = options.icon || "";
+		this.__trayTitle = options.title || "";
 		this.__menuItems = options.menu || [];
 
 		this.__nativeTray = new CTrayIconContainer();
@@ -16,9 +17,7 @@ class WindowsTryicon {
 				cb(id);
 			}
 		})
-		console.log("starting...");
-		this.__nativeTray.Start(this.__iconPath);
-		console.log("started");
+		this.__nativeTray.Start(this.__iconPath, this.__trayTitle);
 	}
 	item(cb) {
 		if ("function" === typeof cb) {

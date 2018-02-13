@@ -1,27 +1,29 @@
 const WindowsTryicon = require("..");
 
 const myTrayApp = new WindowsTryicon({
+	title: "Trayicon Test",
 	icon: "c:\\tmp\\icon.ico",
 	menu: [
 		{
-			id: "http://www.google.com",
-			caption: "Google"
+			id: "item-1-id",
+			caption: "First Item"
 		},
 		{
-			id: "http://www.cnn.com",
-			caption: "cnn"
+			id: "item-2-id",
+			caption: "Second Item"
 		},
 		{
-			id: "exit",
+			id: "item-3-id-exit",
 			caption: "Exit"
 		}
 	]
 });
 
 myTrayApp.item((id) => {
+	console.log(`Menu id selected=${id}`);
 	switch (id) {
 		case "item-1-id": {
-			// do something
+			console.log("First item selected...");
 			break;
 		}
 		case "item-2-id": {
@@ -32,9 +34,10 @@ myTrayApp.item((id) => {
 		}
 		case "item-3-id-exit": {
 			myTrayApp.exit();
+			process.exit(0)
 			break;
 		}
 	}
 });
 
-console.log("test end");
+process.stdin.resume()
