@@ -1,8 +1,8 @@
-const WindowsTryicon = require("..");
+const WindowsTrayicon = require("..");
 const path = require("path");
 const fs = require("fs");
 
-const myTrayApp = new WindowsTryicon({
+const myTrayApp = new WindowsTrayicon({
 	title: "Trayicon Test",
 	icon: path.resolve(__dirname, "icon.ico"),
 	menu: [

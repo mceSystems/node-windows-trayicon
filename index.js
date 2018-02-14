@@ -1,7 +1,7 @@
 const nbind = require("nbind");
 const { lib: { CTrayIconContainer } } = nbind.init(__dirname);
 
-class WindowsTryicon {
+class WindowsTrayicon {
 	constructor(options) {
 		this.__itemCallbacks = [];
 		this.__icon = options.icon;
@@ -40,4 +40,4 @@ class WindowsTryicon {
 	}
 }
 
-module.exports = WindowsTryicon;
+module.exports = WindowsTrayicon;
