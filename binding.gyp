@@ -4,9 +4,18 @@
 			"includes": [
 				"auto.gypi"
 			],
-			"sources": [
-				"TrayWrapper.cpp",
-				"TrayIcon.cpp"
+			"conditions": [
+        		['OS=="win"', {
+					"sources": [
+						"TrayWrapper.cpp",
+						"TrayIcon.cpp"
+					],
+					'msbuild_settings': {
+						"ClCompile": {
+							"RuntimeLibrary": "MultiThreaded"
+						}
+					}
+				}]
 			]
 		}
 	],
