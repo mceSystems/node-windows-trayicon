@@ -1,4 +1,4 @@
-const nbind = require("nbind");
+const nbind = require("@mcesystems/nbind");
 const { lib: { CTrayIconContainer } } = nbind.init(__dirname);
 
 class WindowsTrayicon {

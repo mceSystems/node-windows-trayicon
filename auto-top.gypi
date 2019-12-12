@@ -3,6 +3,6 @@
 
 {
 	"includes": [
-		"node_modules\\nbind\\src\\nbind-common.gypi"
+		"node_modules\\@mcesystems\\nbind\\src\\nbind-common.gypi"
 	]
 }

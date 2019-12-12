@@ -6,6 +6,6 @@
 		"node_modules\\nan"
 	],
 	"includes": [
-		"node_modules\\nbind\\src\\nbind.gypi"
+		"node_modules\\@mcesystems\\nbind\\src\\nbind.gypi"
 	]
 }
