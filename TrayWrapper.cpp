@@ -1,12 +1,8 @@
 #include "TrayIcon.h"
 
-NBIND_CLASS(CTrayIconContainer) {
-	construct<>();
-	method(Start);
-	method(SetIconPath);
-	method(SetTitle);
-	method(Stop);
-	method(AddMenuItem);
-	method(OnMenuItem);
-	method(ShowBalloon);
+Object Init(Env env, Object exports) {
+	CTrayIconContainer::Init(env, exports);
+	return exports;
 }
+
+NODE_API_MODULE(addon, Init)

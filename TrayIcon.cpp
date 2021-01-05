@@ -113,6 +113,22 @@ static UINT GetNextTrayIconId()
 }
 }
 
+void CallJsWithOptionalString(Napi::Env env, Function callback, Context *context, std::string* data) {
+	if (env != nullptr) {
+		if (callback != nullptr) {
+			if (data) {
+				callback.Call(context->Value(), { String::New(env, *data) });
+			} else {
+				callback.Call(context->Value(), {});
+			}
+			
+		}
+	}
+	if (data != nullptr) {
+		delete data;
+	}
+}
+
 static const UINT g_WndMsgTaskbarCreated = RegisterWindowMessage(TEXT("TaskbarCreated"));
 LRESULT CALLBACK CTrayIcon::MessageProcessorWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -311,31 +327,6 @@ void CTrayIcon::FillNotifyIconData(NOTIFYICONDATAA &data)
 	data.uID = m_Id;
 }
 
-typedef void (*MenuItemCallback)(uv_async_t *handle);
-
-class AsyncCallContext
-{
-  public:
-	std::string id;
-	nbind::cbFunction *cb;
-};
-
-void callAsync(MenuItemCallback fn, void *data)
-{
-	uv_async_t *async = new uv_async_t();
-	uv_async_init(uv_default_loop(), async, fn);
-	async->data = data;
-	uv_async_send(async);
-}
-
-void callMenuItemCallback(uv_async_t *handle)
-{
-	Nan::HandleScope scope;
-	AsyncCallContext *ctx = (AsyncCallContext *)handle->data;
-	(*ctx->cb)(ctx->id);
-	delete ctx;
-}
-
 void TrayOnMessage(CTrayIcon *pTrayIcon, UINT uMsg)
 {
 	switch (uMsg)
@@ -357,12 +348,41 @@ HICON GetIconHandle(std::string iconPath)
 }
 
 
-CTrayIconContainer::CTrayIconContainer()
-{
+CTrayIconContainer::CTrayIconContainer(const CallbackInfo& info) : ObjectWrap<CTrayIconContainer>(info), m_OnBalloonClick(nullptr), m_OnMenuItem(nullptr) {}
+
+Object CTrayIconContainer::Init(Napi::Env env, Object exports){
+	Function func =
+		DefineClass(env,
+			"CTrayIconContainer",
+			{
+				InstanceMethod("Start", &CTrayIconContainer::Start),
+				InstanceMethod("SetIconPath", &CTrayIconContainer::SetIconPath),
+				InstanceMethod("SetTitle", &CTrayIconContainer::SetTitle),
+				InstanceMethod("Stop", &CTrayIconContainer::Stop),
+				InstanceMethod("AddMenuItem", &CTrayIconContainer::AddMenuItem),
+				InstanceMethod("OnMenuItem", &CTrayIconContainer::OnMenuItem),
+				InstanceMethod("ShowBalloon", &CTrayIconContainer::ShowBalloon),
+			}
+	);
+
+	FunctionReference* constructor = new FunctionReference();
+	*constructor = Napi::Persistent(func);
+	env.SetInstanceData(constructor);
+
+	exports.Set("CTrayIconContainer", func);
+	return exports;
 }
 
-void CTrayIconContainer::Stop()
+void CTrayIconContainer::Stop(const CallbackInfo& info)
 {
+	if (m_OnMenuItem) {
+		m_OnMenuItem.Release();
+		m_OnMenuItem = nullptr;
+	}
+	if (m_OnBalloonClick) {
+		m_OnBalloonClick.Release();
+		m_OnBalloonClick = nullptr;
+	}
 	PostThreadMessage(GetThreadId(m_worker->native_handle()), WM_QUIT, NULL, NULL);
 	m_worker->join();
 	delete m_worker;
@@ -375,15 +395,17 @@ LRESULT CALLBACK pWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
-void CTrayIconContainer::SetIconPath(std::string iconPath)
+void CTrayIconContainer::SetIconPath(const CallbackInfo& info)
 {
+	std::string iconPath = info[0].As<String>();
 	m_tray.SetIcon(GetIconHandle(iconPath));
 }
-void CTrayIconContainer::SetTitle(std::string title)
+void CTrayIconContainer::SetTitle(const CallbackInfo& info)
 {
+	std::string title = info[0].As<String>();
 	m_tray.SetName(title.c_str());
 }
-void CTrayIconContainer::Start()
+void CTrayIconContainer::Start(const CallbackInfo& info)
 {
 	HANDLE ready = CreateEvent(nullptr, true, false, nullptr);
 
@@ -421,9 +443,7 @@ void CTrayIconContainer::Start()
 
 void CTrayIconContainer::BalloonClick()
 {
-	AsyncCallContext *ctx = new AsyncCallContext;
-	ctx->cb = m_OnBalloonClick;
-	callAsync(callMenuItemCallback, ctx);
+	m_OnBalloonClick.BlockingCall(nullptr);
 }
 
 void CTrayIconContainer::PopupMenu()
@@ -438,25 +458,40 @@ void CTrayIconContainer::PopupMenu()
 			AppendMenuA(menu, MF_STRING, i++, item.m_caption.c_str());
 		}
 		UINT cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, m_hwnd, NULL);
-		AsyncCallContext *ctx = new AsyncCallContext;
-		ctx->cb = m_OnMenuItem;
-		ctx->id = m_menuItems[cmd].m_id;
-		callAsync(callMenuItemCallback, ctx);
+		m_OnMenuItem.BlockingCall(new std::string(m_menuItems[cmd].m_id));
 	}
 }
 
-void CTrayIconContainer::AddMenuItem(std::string id, std::string caption)
+void CTrayIconContainer::AddMenuItem(const CallbackInfo& info)
 {
+	std::string id = info[0].As<String>();
+	std::string caption = info[1].As<String>();
 	m_menuItems.push_back(CTrayIconMenuItem(id, caption));
 }
 
-void CTrayIconContainer::OnMenuItem(nbind::cbFunction &cb)
+void CTrayIconContainer::OnMenuItem(const CallbackInfo& info)
 {
-	m_OnMenuItem = new nbind::cbFunction(cb);
+	Function cb = info[0].As<Function>();
+	Context *context = new Reference<Napi::Value>(Persistent(info.This()));
+	if (m_OnMenuItem) {
+		m_OnMenuItem.Release();
+	}
+	m_OnMenuItem = TSFNOptString::New(info.Env(), cb, "wintrayicon_OnMenuItem", 0, 1, context);
 }
 
-void CTrayIconContainer::ShowBalloon(std::string title, std::string text, int timeout, nbind::cbFunction &cb)
+void CTrayIconContainer::ShowBalloon(const CallbackInfo& info)
 {
-	m_OnBalloonClick = new nbind::cbFunction(cb);
+	std::string title = info[0].As<String>();
+	std::string text = info[1].As<String>();
+	int timeout = info[2].As<Number>();
+	Function cb = info[3].As<Function>();
+
+	Context *context = new Reference<Napi::Value>(Persistent(info.This()));
+
+	if (m_OnBalloonClick) {
+		m_OnBalloonClick.Release();
+	}
+
+	m_OnBalloonClick = TSFNOptString::New(info.Env(), cb, "wintrayicon_ShowBalloon", 0, 1, context);
 	m_tray.ShowBalloonTooltip(title.c_str(), text.c_str());
 }

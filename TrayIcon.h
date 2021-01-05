@@ -15,11 +15,15 @@
 #include <assert.h>
 #include <TCHAR.H>
 #include <thread>
-#include "nbind/nbind.h"
+#include "napi.h"
+
+using namespace Napi;
+
+using Context = Reference<Value>;
+void CallJsWithOptionalString(Napi::Env env, Function callback, Context *context, std::string* data); 
+using TSFNOptString = TypedThreadSafeFunction<Context, std::string, CallJsWithOptionalString>;
 
 struct ITrayIconListener;
-
-
 
 class CTrayIconMenuItem
 {
@@ -162,18 +166,18 @@ struct ITrayIconListener
 
 
 
-class CTrayIconContainer
+class CTrayIconContainer : public ObjectWrap<CTrayIconContainer>
 {
 public:
-	CTrayIconContainer();
-
-	void Start();
-	void SetIconPath(std::string iconPath);
-	void SetTitle(std::string title);
-	void AddMenuItem(std::string id, std::string caption);
-	void OnMenuItem(nbind::cbFunction & cb);
-	void ShowBalloon(std::string title, std::string text, int timeout, nbind::cbFunction & cb);
-	void Stop();
+	CTrayIconContainer(const CallbackInfo& info);
+	static Object Init(Napi::Env env, Object exports);
+	void Start(const CallbackInfo& info);
+	void SetIconPath(const CallbackInfo& info);
+	void SetTitle(const CallbackInfo& info);
+	void AddMenuItem(const CallbackInfo& info);
+	void OnMenuItem(const CallbackInfo& info);
+	void ShowBalloon(const CallbackInfo& info);
+	void Stop(const CallbackInfo& info);
 	void PopupMenu();
 	void BalloonClick();
 
@@ -182,8 +186,8 @@ private:
 	std::thread* m_worker;
 	HWND m_hwnd;
 	std::vector<CTrayIconMenuItem> m_menuItems;
-	nbind::cbFunction* m_OnMenuItem;
-	nbind::cbFunction* m_OnBalloonClick;
+	TSFNOptString m_OnMenuItem;
+	TSFNOptString m_OnBalloonClick;
 };
 
 #endif //!__TRAY_ICON_H__

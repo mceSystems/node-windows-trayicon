@@ -1,14 +1,15 @@
 {
 	"targets": [
 		{
-			"includes": [
-				"auto.gypi"
-			],
+			"target_name": "addon",
 			"conditions": [
         		['OS=="win"', {
 					"sources": [
 						"TrayWrapper.cpp",
 						"TrayIcon.cpp"
+					],
+					"include_dirs": [
+						"<!@(node -p \"require('node-addon-api').include\")"
 					],
 					'msbuild_settings': {
 						"ClCompile": {
@@ -18,8 +19,5 @@
 				}]
 			]
 		}
-	],
-	"includes": [
-		"auto-top.gypi"
 	]
 }
